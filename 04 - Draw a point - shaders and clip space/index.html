@@ -1,0 +1,91 @@
+<!doctype html>
+
+<html>
+
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+
+        <meta name="author" content="Yann Gilquin">
+        <meta name="description" content="Formation WebGL - Draw a point with shaders in clip space">
+
+        <title>Draw a point with shaders in clip space</title>
+
+        <style>
+            html, body {
+                background-color: #202020;
+                margin: 0px;
+                overflow: hidden;
+                width: 100%;
+                height: 100%;
+            }
+
+            canvas {
+                width: 400px;
+                height: 400px;
+                margin: 50px;
+                touch-action: none;
+            }
+        </style>
+
+        <script type="text/javascript" src="../lib/webgl-utils.js"></script>
+        <script type="text/javascript" src="../lib/webgl-shader-utils.js"></script>
+    </head>
+
+    <body>
+        <canvas id="canvas" width="400" height="400"></canvas>
+
+        <script>
+            /*
+             * Draw a single point in the canvas using a simple set of shaders
+             * with harcoded values for the position of the point in clip space (vertex shader)
+             * and its color (float r,g,b,a components) in the fragement shader
+             */
+
+            // Get canvas reference and WebGL context
+            const canvas = document.getElementById("canvas")
+            const gl = WebGLUtils.setupWebGL(canvas)
+
+            // const ptSizeRange = gl.getParameter(gl.ALIASED_POINT_SIZE_RANGE)
+            // console.log(ptSizeRange)
+
+            // The vertex shader should output
+            // gl_Position: the result position in clip space (4 dimensions, normalized between -1 and +1)
+            // gl_PointSize: the size of the square point in pixels (only when drawing with gl.POINTS)
+            const VERTEX_SHADER = WebGLShaderUtils.shaderArrayToString([
+                "void main()",
+                "{",
+                "   gl_Position = vec4(0.5, 0.5, 0.0, 1.0);",
+                "   gl_PointSize = 20.0;",
+                "}"
+            ])
+
+            // The fragment shader should output:
+            // gl_FragColor: the color of the fragment
+            const FRAGMENT_SHADER = WebGLShaderUtils.shaderArrayToString([
+                "void main()",
+                "{",
+                "   gl_FragColor = vec4(0.0, 1.0, 0.0, 1.0);",
+                "}"
+            ])
+
+            // Create shaders, attach the sources, compile them and check the compilation status
+            // Then create the program, attach the shaders, link, validate and check the link status
+            let program = WebGLShaderUtils.createProgram(gl, VERTEX_SHADER, FRAGMENT_SHADER)
+            
+            // Use this program to draw
+            gl.useProgram(program)
+
+            // Set the clear color 
+            gl.clearColor(0.0, 0.0, 0.0, 1.0)
+            
+            // Clear the color buffer and draw a point
+            gl.clear(gl.COLOR_BUFFER_BIT)
+
+            gl.drawArrays(gl.POINTS, 0, 1)
+
+        </script>
+
+    </body>
+
+</html>
