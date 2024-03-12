@@ -93,7 +93,12 @@
                         "void main()",
                         "{",
                         // The fragment color has 4 channels (r, g, b, a)
-                        "   gl_FragColor = vec4(u_color, 1.0);",
+                        "   if (distance(gl_PointCoord, vec2(0.5, 0.5)) < 0.5) {",
+                        // "       gl_FragColor = vec4(u_color, 1.0);",
+                        "       gl_FragColor = vec4(1.0, 1.0-(gl_PointCoord.y), 0.0, 1.0);",
+                        "   } else {",
+                        "       discard;",
+                        "   }",
                         "}"
                     ])
                 }
@@ -106,7 +111,7 @@
                     this.attributes.position = getAttributeLocation(this.program, "a_position")
                     this.attributes.pointSize = getAttributeLocation(this.program, "a_pointSize")
                     
-                    this.uniforms.color = getUniformLocation(this.program, "u_color")
+                    // this.uniforms.color = getUniformLocation(this.program, "u_color")
                 }
 
                 draw()
@@ -133,8 +138,6 @@
 
                 // Clear the color buffer
                 gl.clear(gl.COLOR_BUFFER_BIT)
-                let point = new Point()
-                point.draw()
             }
 
             init()
@@ -148,11 +151,12 @@
                 var y = event.clientY - rect.top;
                 var xPoint = (x / canvas.width) * 2 - 1;
                 var yPoint = (y / canvas.height) * -2 + 1;
-                for (var i = 0; i<200; i++){
-                    points.push(new Point(xPoint + i/100, yPoint - i/100, 10.0));
-                }
-                
-                
+                // for (var i = 0; i<200; i++){
+                //     points.push(new Point(xPoint + i/100, yPoint - i/100, 10.0));
+                // }
+
+                points.push(new Point(xPoint, yPoint, 50.0));
+
                 points.forEach(function(point)
                 {
                     point.draw()
