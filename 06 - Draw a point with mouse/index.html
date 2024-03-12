@@ -46,9 +46,25 @@
 
             class Point
             {
-                constructor()
+                constructor( x = 0.0, y = 0.0, size = 10.0 )
                 {
+                    this.x = x
+                    this.y = y
+                    this.size = size
+
+                    if (this.x > -1 && this.x < 0)
+                    {
+                        this.color = [0.0, 0.0, 1.0]
+                    }
+                    else
+                    {
+                        this.color = [1.0, 0.0, 0.0]
+                    }
+
                     this.program = null
+
+                    this.attributes = {}
+                    this.uniforms = {}
 
                     this.initProgram()
                 }
@@ -56,13 +72,15 @@
                 static get vertexShader()
                 {
                     return WebGLShaderUtils.shaderArrayToString([
+                        "attribute vec2 a_position;",
+                        "attribute float a_pointSize;",
                         "void main()",
                         "{",
                         // gl_Position is a vec4 value in clip space (-1 .. +1)
-                        "   gl_Position = vec4(0.0, 0.0, 0.0, 1.0);",
+                        "   gl_Position = vec4(a_position, 0.0, 1.0);",
 
                         // gl_PointSize should be set with a value in pixels
-                        "   gl_PointSize = 10.0;",
+                        "   gl_PointSize = a_pointSize;",
                         "}"
                     ])
                 }
@@ -71,11 +89,11 @@
                 {
                     return WebGLShaderUtils.shaderArrayToString([
                         "precision mediump float;",
-
+                        "uniform vec3 u_color;",
                         "void main()",
                         "{",
                         // The fragment color has 4 channels (r, g, b, a)
-                        "   gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);",
+                        "   gl_FragColor = vec4(u_color, 1.0);",
                         "}"
                     ])
                 }
@@ -85,12 +103,22 @@
                     // Create the program with shader code
                     this.program = WebGLShaderUtils.createProgram(gl, Point.vertexShader, Point.fragmentShader)
 
-                    // Use the program to allow access to attributes and uniforms location                    
-                    gl.useProgram(this.program)
+                    this.attributes.position = getAttributeLocation(this.program, "a_position")
+                    this.attributes.pointSize = getAttributeLocation(this.program, "a_pointSize")
+                    
+                    this.uniforms.color = getUniformLocation(this.program, "u_color")
                 }
 
                 draw()
                 {
+                    // Use the program to allow access to attributes and uniforms location                    
+                    gl.useProgram(this.program)
+                    
+                    gl.vertexAttrib1f(this.attributes.pointSize, this.size)
+                    gl.vertexAttrib2f(this.attributes.position, this.x, this.y)
+
+                    gl.uniform3fv(this.uniforms.color, this.color)
+
                     gl.drawArrays(gl.POINTS, 0, 1)
                 }
             }
@@ -111,6 +139,23 @@
             }
 
             init()
+
+            let points = []
+        
+            canvas.addEventListener("click", function(event)
+            {
+                var rect = canvas.getBoundingClientRect();
+                var x = event.clientX - rect.left;
+                var y = event.clientY - rect.top;
+                var xPoint = (x / canvas.width) * 2 - 1;
+                var yPoint = (y / canvas.height) * -2 + 1;
+                points.push(new Point(xPoint, yPoint, 10.0));
+                
+                points.forEach(function(point)
+                {
+                    point.draw()
+                })
+            })
 
         </script>
 
