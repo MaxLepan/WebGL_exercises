@@ -113,7 +113,7 @@
                 {
                     // Use the program to allow access to attributes and uniforms location                    
                     gl.useProgram(this.program)
-                    
+
                     gl.vertexAttrib1f(this.attributes.pointSize, this.size)
                     gl.vertexAttrib2f(this.attributes.position, this.x, this.y)
 
@@ -126,14 +126,13 @@
             function init()
             {
                 const canvas = document.getElementById("canvas")
-                gl = WebGLUtils.setupWebGL(canvas)
+                gl = WebGLUtils.setupWebGL(canvas, { preserveDrawingBuffer: true })
 
                 // Set the default value of the color buffer
                 gl.clearColor(0.0, 0.0, 0.0, 1.0)
 
                 // Clear the color buffer
                 gl.clear(gl.COLOR_BUFFER_BIT)
-
                 let point = new Point()
                 point.draw()
             }
@@ -149,7 +148,10 @@
                 var y = event.clientY - rect.top;
                 var xPoint = (x / canvas.width) * 2 - 1;
                 var yPoint = (y / canvas.height) * -2 + 1;
-                points.push(new Point(xPoint, yPoint, 10.0));
+                for (var i = 0; i<200; i++){
+                    points.push(new Point(xPoint + i/100, yPoint - i/100, 10.0));
+                }
+                
                 
                 points.forEach(function(point)
                 {
