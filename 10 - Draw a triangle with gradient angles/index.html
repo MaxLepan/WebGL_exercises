@@ -136,6 +136,8 @@
                         0.75, 0.0, 0.0, 0.0, 1.0
                     ]);
 
+                    this.vertexBufferBPE = vertices.BYTES_PER_ELEMENT
+
                     // Create the vertex buffer
                     this.vertexBuffer = gl.createBuffer()
 
@@ -155,8 +157,23 @@
                     gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer)
                     
                     // Define how the position attribute will be read into the buffer. The 2 first values are the x and y values, the 3 others are the color
-                    gl.vertexAttribPointer(this.attributes.position, 2, gl.FLOAT, false, 20, 0)
-                    gl.vertexAttribPointer(this.attributes.color, 3, gl.FLOAT, false, 20, 8)
+                    gl.vertexAttribPointer(
+                        this.attributes.position, 
+                        2, 
+                        gl.FLOAT, 
+                        false, 
+                        5 * this.vertexBufferBPE, 
+                        0
+                    )
+
+                    gl.vertexAttribPointer(
+                        this.attributes.color, 
+                        3, 
+                        gl.FLOAT, 
+                        false, 
+                        5 * this.vertexBufferBPE, 
+                        2 * this.vertexBufferBPE
+                    )
                     
                     // Enable the position attribute
                     gl.enableVertexAttribArray(this.attributes.position)
