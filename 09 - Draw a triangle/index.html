@@ -1,0 +1,203 @@
+<!doctype html>
+
+<html>
+
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+
+        <meta name="author" content="Yann Gilquin">
+        <meta name="description" content="Formation WebGL - Draw a triangle">
+
+        <title>Draw a triangle</title>
+
+        <style>
+            html, body {
+                background-color: #202020;
+                margin: 0px;
+                overflow: hidden;
+                width: 100%;
+                height: 100%;
+            }
+
+            canvas {
+                width: 400px;
+                height: 400px;
+                margin: 50px;
+                touch-action: none;
+            }
+        </style>
+
+        <script type="text/javascript" src="../lib/webgl-utils.js"></script>
+        <script type="text/javascript" src="../lib/webgl-shader-utils.js"></script>
+        <script type="text/javascript" src="../lib/webgl-helpers.js"></script>
+    </head>
+
+    <body>
+        <canvas id="canvas" width="400" height="400"></canvas>
+
+        <script>
+            /*
+             * Draw a red triangle
+             *
+             * First approach to geometry drawing
+             */
+
+            // Keep the WebGL context global to make code easier to read
+            let gl
+
+            // Use only one global context object to keep code clear
+            let context = {
+                triangle: null
+            }
+
+            /*
+             * Triangle class
+             * 
+             * Define its shaders and geometry
+             *
+             */
+            class Triangle
+            {
+                constructor(color)
+                {
+                    this.color = color
+
+                    /*
+                     * Program and shaders definitions
+                     */
+                    this.program = null
+                    this.uniforms = {}
+                    this.attributes = {}
+
+                    /*
+                     * Geometry definitions
+                     */
+                    this.vertexBuffer = null
+
+                    /*
+                     * Init program and geometry
+                     */
+                    this.initProgram()
+                    this.initGeometry()
+                }
+
+                static get vertexShader()
+                {
+                    return WebGLShaderUtils.shaderArrayToString([
+                        "attribute vec4 aPosition;",
+                        "",
+                        "void main()",
+                        "{",
+                        "   gl_Position = aPosition;",
+                        "}"
+                    ])
+                }
+
+                static get fragmentShader()
+                {
+                    return WebGLShaderUtils.shaderArrayToString([
+                        "precision mediump float;",
+                        "",
+                        "uniform vec3 uColor;",
+                        "",
+                        "void main()",
+                        "{",
+                        "   gl_FragColor = vec4(uColor, 1.0);",
+                        "}"
+                    ])
+                }
+
+                initProgram()
+                {
+                    // Create the program with shader code
+                    this.program = WebGLShaderUtils.createProgram(gl, Triangle.vertexShader, Triangle.fragmentShader)
+
+                    // Use the program to allow access to attributes and uniforms location                    
+                    gl.useProgram(this.program)
+
+                    // Get all attributes locations
+                    this.attributes.position = WebGLHelpers.getAttributeLocation(this.program, "aPosition")
+                    
+                    // Get all uniforms locations
+                    this.uniforms.color = WebGLHelpers.getUniformLocation(this.program, "uColor")
+                }
+
+                initGeometry()
+                {
+                    // Positions definition (2D clip space)
+                    const positions = new Float32Array([
+                        -0.5, -0.5,
+                         0.0,  0.5,
+                         0.5, -0.5
+                    ]);
+
+                    // Create the vertex buffer
+                    this.vertexBuffer = gl.createBuffer()
+
+                    // Bind the new buffer to the ARRAY BUFFER
+                    gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer)
+                    
+                    // Set positions data into the buffer
+                    gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW)
+                }
+
+                beforeDraw()
+                {
+                    // Use the program
+                    gl.useProgram(this.program)
+
+                    // Bind the vertex buffer
+                    gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer)
+                    
+                    // Define how the position attribute will be read into the buffer
+                    gl.vertexAttribPointer(this.attributes.position, 2, gl.FLOAT, false, 0, 0)
+                    
+                    // Enable the position attribute
+                    gl.enableVertexAttribArray(this.attributes.position)
+                }
+
+                draw()
+                {
+                    this.beforeDraw()
+
+                    // Set current uniform : warning this is a rendundant call, do it once if you can
+                    gl.uniform3fv(this.uniforms.color, this.color)
+
+                    // Draw
+                    gl.drawArrays(gl.TRIANGLES, 0, 3)
+                }
+            }
+
+            /*
+             * Init GL context and setup the scene
+             */
+            function init()
+            {
+                let canvas = document.getElementById("canvas")
+                gl = WebGLUtils.setupWebGL(canvas)
+
+                gl.clearColor(0.0, 0.0, 0.0, 1.0)
+
+                context.triangle = new Triangle([1.0, 0.0, 0.0])
+            }
+
+            /*
+             * Draw the triangle
+             */
+            function render()
+            {
+                // Clear the frame buffer
+                gl.clear(gl.COLOR_BUFFER_BIT)
+
+                // Draw the triangle
+                context.triangle.draw()
+            }
+
+            init()
+            render()
+
+        </script>
+    </body>
+
+</html>
