@@ -1,0 +1,170 @@
+<!doctype html>
+
+<html>
+
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+
+        <meta name="author" content="Yann Gilquin">
+        <meta name="description" content="Formation WebGL - Drawable class">
+
+        <title>Drawable class</title>
+
+        <style>
+            html, body {
+                background-color: #202020;
+                margin: 0px;
+                overflow: hidden;
+                width: 100%;
+                height: 100%;
+            }
+
+            canvas {
+                width: 400px;
+                height: 400px;
+                margin: 50px;
+                touch-action: none;
+            }
+        </style>
+
+        <script type="text/javascript" src="../lib/webgl-utils.js"></script>
+        <script type="text/javascript" src="../lib/webgl-shader-utils.js"></script>
+        <script type="text/javascript" src="../lib/webgl-helpers.js"></script>
+    </head>
+
+    <body>
+        <canvas id="canvas" width="400" height="400"></canvas>
+
+        <script>
+            /*
+             * Introduce drawable class object with the point example
+             */
+
+            // Keep the WebGL context global to make code easier to read
+            let gl
+
+            class Point
+            {
+                constructor( x = 0.0, y = 0.0, size = 10.0 )
+                {
+                    this.x = x
+                    this.y = y
+                    this.size = size
+
+                    if (this.x > -1 && this.x < 0)
+                    {
+                        this.color = [0.0, 0.0, 1.0]
+                    }
+                    else
+                    {
+                        this.color = [1.0, 0.0, 0.0]
+                    }
+
+                    this.program = null
+
+                    this.attributes = {}
+                    this.uniforms = {}
+
+                    this.initProgram()
+                }
+
+                static get vertexShader()
+                {
+                    return WebGLShaderUtils.shaderArrayToString([
+                        "attribute vec2 a_position;",
+                        "attribute float a_pointSize;",
+                        "void main()",
+                        "{",
+                        // gl_Position is a vec4 value in clip space (-1 .. +1)
+                        "   gl_Position = vec4(a_position, 0.0, 1.0);",
+
+                        // gl_PointSize should be set with a value in pixels
+                        "   gl_PointSize = a_pointSize;",
+                        "}"
+                    ])
+                }
+
+                static get fragmentShader()
+                {
+                    return WebGLShaderUtils.shaderArrayToString([
+                        "precision mediump float;",
+                        "uniform vec3 u_color;",
+                        "void main()",
+                        "{",
+                        // The fragment color has 4 channels (r, g, b, a)
+                        // "   gl_FragColor = vec4(mix(vec3(1.0, 0.0, 0.0), vec3(0.0, 0.0, 0.8), smoothstep(0.5, 0.25, distance(gl_PointCoord, vec2(0.5, 0.5)))), 1.0);",
+                        "   gl_FragColor = mix(vec4(0.0, 0.0, 0.0, 0.0), vec4(0.0, 0.0, 0.8, 1.0), smoothstep(0.5, 0.25, distance(gl_PointCoord, vec2(0.5, 0.5))));",
+                        "}"
+                    ])
+                }
+
+                initProgram()
+                {
+                    // Create the program with shader code
+                    this.program = WebGLShaderUtils.createProgram(gl, Point.vertexShader, Point.fragmentShader)
+
+                    this.attributes.position = getAttributeLocation(this.program, "a_position")
+                    this.attributes.pointSize = getAttributeLocation(this.program, "a_pointSize")
+                    
+                    //this.uniforms.color = getUniformLocation(this.program, "u_color")
+                }
+
+                draw()
+                {
+                    // Use the program to allow access to attributes and uniforms location                    
+                    gl.useProgram(this.program)
+
+                    gl.vertexAttrib1f(this.attributes.pointSize, this.size)
+                    gl.vertexAttrib2f(this.attributes.position, this.x, this.y)
+
+                    gl.uniform3fv(this.uniforms.color, this.color)
+
+                    gl.drawArrays(gl.POINTS, 0, 1)
+                }
+            }
+    
+            function init()
+            {
+                const canvas = document.getElementById("canvas")
+                gl = WebGLUtils.setupWebGL(canvas, { preserveDrawingBuffer: true })
+                
+                // activate alpha
+                gl.enable(gl.BLEND)
+                gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
+
+                // Set the default value of the color buffer
+                gl.clearColor(0.0, 0.0, 0.0, 1.0)
+
+                // Clear the color buffer
+                gl.clear(gl.COLOR_BUFFER_BIT)
+            }
+
+            init()
+
+            let points = []
+        
+            canvas.addEventListener("click", function(event)
+            {
+                var rect = canvas.getBoundingClientRect();
+                var x = event.clientX - rect.left;
+                var y = event.clientY - rect.top;
+                var xPoint = (x / canvas.width) * 2 - 1;
+                var yPoint = (y / canvas.height) * -2 + 1;
+                // for (var i = 0; i<200; i++){
+                //     points.push(new Point(xPoint + i/100, yPoint - i/100, 10.0));
+                // }
+
+                points.push(new Point(xPoint, yPoint, 50.0));
+
+                points.forEach(function(point)
+                {
+                    point.draw()
+                })
+            })
+
+        </script>
+
+    </body>
+
+</html>
