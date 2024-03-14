@@ -7,9 +7,9 @@
         <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
 
         <meta name="author" content="Yann Gilquin">
-        <meta name="description" content="Formation WebGL - Object transform in clip space">
+        <meta name="description" content="Formation WebGL - Transform matrix in clip space">
 
-        <title>Object transform in clip space</title>
+        <title>Transform matrix in clip space</title>
 
         <style>
             html, body {
@@ -30,8 +30,10 @@
         <script type="text/javascript" src="../lib/webgl-utils.js"></script>
         <script type="text/javascript" src="../lib/webgl-shader-utils.js"></script>
         <script type="text/javascript" src="../lib/webgl-helpers.js"></script>
+        <script type="text/javascript" src="../lib/cuon-matrix.js"></script>
         <script type="text/javascript" src="../lib/dat.gui.js"></script>
         <script type="text/javascript" src="../lib/stats.js"></script>
+        <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.151.3/three.js"></script>
 
     </head>
 
@@ -41,7 +43,8 @@
         <script>
             /*
              * Draw a triangle and apply transforms values with a GUI
-             * in clip space (translate and scale)
+             * (translate, rotate and scale) by computing a transform
+             * matrix in clip space
              */
 
             // Keep the WebGL context global to make code easier to read
@@ -68,7 +71,8 @@
                 constructor() {
                     this.scale = 1
                     this.translateX = 0
-                    this.translateY = 0                    
+                    this.translateY = 0
+                    this.rotation = 0
                 }
             }
 
@@ -84,6 +88,7 @@
             transform.add(context.params, 'scale', 0.1, 1)
             transform.add(context.params, 'translateX', -0.5, 0.5)
             transform.add(context.params, 'translateY', -0.5, 0.5)
+            transform.add(context.params, 'rotation', 0, 360, 1);
 
             /*
              * Triangle class
@@ -114,11 +119,14 @@
                     this.initGeometry()
 
                     /*
-                     * Transform definition
+                     * Transform object and matrix
                      */
+                    this.transformMatrix = null
+
                     this.transform = {
-                        scale: new Vector2D(1, 1),
-                        position: new Vector2D(0, 0)
+                        scale: 0,
+                        position: new Vector2D(0, 0),
+                        rotation: 0
                     }
                 }
 
@@ -127,14 +135,13 @@
                     return WebGLShaderUtils.shaderArrayToString([
                         "attribute vec2 aPosition;",
                         
-                        "uniform vec2 uTranslate;",
-                        "uniform float uScale;",
+                        "uniform mat3 uTransform;",
 
                         "void main()",
                         "{",
-                        // Compute gl_Position in clip space, taking scale and translate into account
-                        "vec2 translatePosition = (aPosition * vec2(uScale) + uTranslate);",
-                        "gl_Position = vec4(translatePosition, 0., 1.);",
+                        // Compute gl_Position : position attribute transformed by the matrix
+                        "   vec3 transformed = uTransform * vec3(aPosition, 1.);",
+                        "   gl_Position = vec4(transformed, 1.);",
                         "}"
                     ])
                 }
@@ -167,9 +174,7 @@
                     // Get all uniforms locations
                     this.uniforms.color = WebGLHelpers.getUniformLocation(this.program, "uColor")
 
-                    this.uniforms.scale = WebGLHelpers.getUniformLocation(this.program, "uScale")
-
-                    this.uniforms.translate = WebGLHelpers.getUniformLocation(this.program, "uTranslate")
+                    this.uniforms.transformMatrix = WebGLHelpers.getUniformLocation(this.program, "uTransform")
                 }
 
                 initGeometry()
@@ -192,11 +197,21 @@
                 }
 
                 /*
+                 * Set rotation value (degrees)
+                 */
+                setRotation(angleDeg)
+                {
+                    this.transform.rotation = 2 * Math.PI * angleDeg / 360
+                    this.updateTransformMatrix()
+                }
+
+                /*
                  * Set scale value (clip space)
                  */
                 setScale(scale)
                 {
                     this.transform.scale = scale
+                    this.updateTransformMatrix()
                 }
 
                 /*
@@ -206,6 +221,28 @@
                 {
                     this.transform.position.x = x
                     this.transform.position.y = y
+                    this.updateTransformMatrix()
+                }    
+
+                /*
+                 * Update transform matrix
+                 */
+                updateTransformMatrix()
+                {
+                    // Create a scaling matrix
+                    const mScale = new THREE.Matrix3().makeScale(this.transform.scale, this.transform.scale)
+
+                    // Compute rotation with
+                    const mRotation = new THREE.Matrix3().makeRotation(this.transform.rotation)
+                    
+                    // Compute translation with
+                    const mTranslation = new THREE.Matrix3().makeTranslation(this.transform.position.x, this.transform.position.y)
+                    
+                    // Compute the product of the 3 matrices with following syntax
+                    // return matrixC.multiply(matrixB).multiply(matrixA);
+                    // Remember: matrix product is not commutative
+
+                    this.transformMatrix = mTranslation.clone().multiply(mScale).multiply(mRotation)
                 }
 
                 beforeDraw()
@@ -222,12 +259,13 @@
                     // Enable the position attribute
                     gl.enableVertexAttribArray(this.attributes.position)
 
-                    // Set transform values (clip space) with uniforms
-                    gl.uniform1f(this.uniforms.scale, this.transform.scale)
-                    gl.uniform2fv(this.uniforms.translate, [this.transform.position.x, this.transform.position.y])
+                    // Compute and set the transform matrix uniform
+                    gl.uniformMatrix3fv(this.uniforms.transformMatrix, false, this.transformMatrix.elements)
+                    console.log(this.transformMatrix.elements)
 
-                    // Set color
+                    // Set the color
                     gl.uniform3fv(this.uniforms.color, this.color)
+
                 }
 
                 draw()
@@ -249,7 +287,7 @@
 
                 gl.clearColor(0.0, 0.0, 0.0, 1.0)
 
-                context.triangle = new Triangle([0.8, 0.2, 0.0])
+                context.triangle = new Triangle([0.8, 0.2, 0.0], false)
             }
 
             /*
@@ -265,12 +303,10 @@
                 // Schedule next frame
                 window.requestAnimationFrame(animate)
 
-                // Update phase for animation (ramp from 0 to 1 during the period interval)
-                context.animation.phase = ((Date.now() / 1000) % context.animation.period) / context.animation.period
-
-                // Update the triangle position and scale from context params
+                // Update the triangle transform with rotation, position and scale from GUI params
                 context.triangle.setScale(context.params.scale)
                 context.triangle.setPosition(context.params.translateX, context.params.translateY)
+                context.triangle.setRotation(context.params.rotation)
 
                 render()
             }
@@ -295,4 +331,3 @@
     </body>
 
 </html>
-
