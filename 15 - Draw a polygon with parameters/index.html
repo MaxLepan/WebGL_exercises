@@ -58,12 +58,12 @@
     <div class="parameters">
         <div>
             <label for="sides">Sides</label>
-            <input type="range" min="0" max="20" value="6" id="sides" />
+            <input type="range" min="3" max="20" value="6" id="sides" />
             <p id="side_nb"></p>
         </div>
         <div>
             <label for="radius">Radius</label>
-            <input type="range" min="0" max="1" value="1" step="0.1" id="radius" />
+            <input type="range" min="0.1" max="1" value="1" step="0.1" id="radius" />
             <p id="radius_value"></p>
         </div>
     </div>
@@ -100,6 +100,22 @@
 
                 this.initProgram()
                 this.initGeometry()
+            }
+
+            destroy() {
+                if (this.program!== null) {
+                    gl.deleteProgram(this.program)
+                }
+
+                if (this.vertexBuffer !== null) {
+                    gl.bindBuffer(gl.ARRAY_BUFFER, null)
+                    gl.deleteBuffer(this.vertexBuffer)
+                }
+
+                if (this.colorBuffer !== null) {
+                    gl.bindBuffer(gl.ARRAY_BUFFER, null)
+                    gl.deleteBuffer(this.colorBuffer)
+                }
             }
 
             static get vertexShader() {
