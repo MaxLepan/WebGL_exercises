@@ -1,0 +1,77 @@
+<!DOCTYPE HTML>
+
+<html>
+
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+
+        <meta name="author" content="Yann Gilquin">
+        <meta name="description" content="Formation WebGL - Draw points - point coord in fragment shader">
+
+        <title>Draw points - point coord in fragment shader</title>
+
+        <style>
+            html, body {
+                background-color: #202020;
+                margin: 0px;
+                overflow: hidden;
+                width: 100%;
+                height: 100%;
+            }
+
+            canvas {
+                width: 400px;
+                height: 400px;
+                touch-action: none;
+            }
+        </style>
+
+        <script type="text/javascript" src="../lib/webgl-utils.js"></script>
+        <script type="text/javascript" src="../lib/webgl-shader-utils.js"></script>
+    </head>
+
+    <body>
+        <canvas id="canvas" width="400" height="400"></canvas>
+
+        <script>
+            /*
+             * Fragment shader advanced
+             * In POINTS mode, the fragment shader draws a point sized with gl_PointSize (in vertex shader, px)
+             * It's possible to get the coordinates of the fragment in the point space with gl_PointCoord built-in
+             * Draw a 2D blue and green gradient with this variable as color input
+             * Bottom left should be blue, and top right should be green
+             */
+
+            let VERTEX_SHADER = WebGLShaderUtils.shaderArrayToString([
+                "void main()",
+                "{",
+                "   gl_Position = vec4(0.0, 0.0, 0.0, 1.0);",
+                "   gl_PointSize = 180.0;",
+                "}"
+            ])
+
+            let FRAGMENT_SHADER = WebGLShaderUtils.shaderArrayToString([
+                "void main()",
+                "{",
+                // Use gl_PointCoord in space [top left 0..1 0..1 bottom right]
+                //..
+                "}"
+            ])
+
+            let canvas = document.getElementById("canvas")
+            let gl = WebGLUtils.setupWebGL(canvas)
+
+            let program = WebGLShaderUtils.createProgram(gl, VERTEX_SHADER, FRAGMENT_SHADER)
+            gl.useProgram(program)
+
+            gl.clearColor(0.0, 0.0, 0.0, 1.0)
+            gl.clear(gl.COLOR_BUFFER_BIT)
+
+            gl.drawArrays(gl.POINTS, 0, 1)
+
+        </script>
+
+    </body>
+
+</html>

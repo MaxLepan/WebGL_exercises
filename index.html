@@ -1,0 +1,298 @@
+<!DOCTYPE HTML>
+
+<html>
+
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+
+        <meta name="author" content="Yann Gilquin">
+        <meta name="description" content="Formation WebGL - Object transform in clip space">
+
+        <title>Object transform in clip space</title>
+
+        <style>
+            html, body {
+                background-color: #202020;
+                margin: 0px;
+                overflow: hidden;
+                width: 100%;
+                height: 100%;
+            }
+
+            canvas {
+                width: 400px;
+                height: 400px;
+                touch-action: none;
+            }
+        </style>
+
+        <script type="text/javascript" src="../lib/webgl-utils.js"></script>
+        <script type="text/javascript" src="../lib/webgl-shader-utils.js"></script>
+        <script type="text/javascript" src="../lib/webgl-helpers.js"></script>
+        <script type="text/javascript" src="../lib/dat.gui.js"></script>
+        <script type="text/javascript" src="../lib/stats.js"></script>
+
+    </head>
+
+    <body>
+        <canvas id="canvas" width="400" height="400"></canvas>
+
+        <script>
+            /*
+             * Draw a triangle and apply transforms values with a GUI
+             * in clip space (translate and scale)
+             */
+
+            // Keep the WebGL context global to make code easier to read
+            let gl
+
+            // Use only one global context object to keep code clear
+            let context = {
+                triangle: null,
+                animation:
+                {
+                    period: 10,
+                    phase: 0
+                },
+                paramsDef: null,
+                params: null,
+                gui: null
+            }
+
+            /*
+             * Graphical User In terface params class
+             * Define params to control runtime properties
+             */
+            context.paramsDef = class {
+                constructor() {
+                    this.scale = 1
+                    this.translateX = 0
+                    this.translateY = 0                    
+                }
+            }
+
+            /*
+             * Create GUI and params instances
+             * Setup the interface with property association
+             */
+            context.params = new context.paramsDef()
+            context.gui = new dat.GUI()
+
+            let transform = context.gui.addFolder("Clip space transform")
+            transform.open()
+            transform.add(context.params, 'scale', 0.1, 1)
+            transform.add(context.params, 'translateX', -0.5, 0.5)
+            transform.add(context.params, 'translateY', -0.5, 0.5)
+
+            /*
+             * Triangle class
+             * Implement API methods to set scale and position in clip space
+             */
+            class Triangle
+            {
+                constructor(color)
+                {
+                    this.color = color
+
+                    /*
+                     * Program and shaders definitions
+                     */
+                    this.program = null
+                    this.uniforms = {}
+                    this.attributes = {}
+
+                    /*
+                     * Geometry definitions
+                     */
+                    this.vertexBuffer = null
+
+                    /*
+                     * Init program and geometry
+                     */
+                    this.initProgram()
+                    this.initGeometry()
+
+                    /*
+                     * Transform definition
+                     */
+                    this.transform = {
+                        scale: new Vector2D(1, 1),
+                        position: new Vector2D(0, 0)
+                    }
+                }
+
+                static get vertexShader()
+                {
+                    return WebGLShaderUtils.shaderArrayToString([
+                        "attribute vec2 aPosition;",
+                        
+                        "uniform vec2 uTranslate;",
+                        "uniform float uScale;",
+
+                        "void main()",
+                        "{",
+                        // Compute gl_Position in clip space, taking scale and translate into account
+                        "vec2 translatePosition = (aPosition * vec2(uScale) + uTranslate);",
+                        "gl_Position = vec4(translatePosition, 0., 1.);",
+                        "}"
+                    ])
+                }
+
+                static get fragmentShader()
+                {
+                    return WebGLShaderUtils.shaderArrayToString([
+                        "precision mediump float;",
+                        
+                        "uniform vec3 uColor;",
+                        
+                        "void main()",
+                        "{",
+                        "   gl_FragColor = vec4(uColor, 1.0);",
+                        "}"
+                    ])
+                }
+
+                initProgram()
+                {
+                    // Create the program with shader code
+                    this.program = WebGLShaderUtils.createProgram(gl, Triangle.vertexShader, Triangle.fragmentShader)
+
+                    // Use the program to allow access to attributes and uniforms location                    
+                    gl.useProgram(this.program)
+
+                    // Get all attributes locations
+                    this.attributes.position = WebGLHelpers.getAttributeLocation(this.program, "aPosition")
+                    
+                    // Get all uniforms locations
+                    this.uniforms.color = WebGLHelpers.getUniformLocation(this.program, "uColor")
+
+                    this.uniforms.scale = WebGLHelpers.getUniformLocation(this.program, "uScale")
+
+                    this.uniforms.translate = WebGLHelpers.getUniformLocation(this.program, "uTranslate")
+                }
+
+                initGeometry()
+                {
+                    // Positions definition (2D clip space)
+                    const positions = new Float32Array([
+                        -0.5, -0.5,
+                         0.0,  0.5,
+                         0.5, -0.5
+                    ]);
+
+                    // Create the vertex buffer
+                    this.vertexBuffer = gl.createBuffer()
+
+                    // Bind the new buffer to the ARRAY BUFFER
+                    gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer)
+                    
+                    // Set positions data into the buffer
+                    gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW)
+                }
+
+                /*
+                 * Set scale value (clip space)
+                 */
+                setScale(scale)
+                {
+                    this.transform.scale = scale
+                }
+
+                /*
+                 * Set translate position (clip space)
+                 */
+                setPosition(x, y)
+                {
+                    this.transform.position.x = x
+                    this.transform.position.y = y
+                }
+
+                beforeDraw()
+                {
+                    // Use the program
+                    gl.useProgram(this.program)
+
+                    // Bind the vertex buffer
+                    gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer)
+                    
+                    // Define how the position attribute will be read into the buffer
+                    gl.vertexAttribPointer(this.attributes.position, 2, gl.FLOAT, false, 0, 0)
+                    
+                    // Enable the position attribute
+                    gl.enableVertexAttribArray(this.attributes.position)
+
+                    // Set transform values (clip space) with uniforms
+                    gl.uniform1f(this.uniforms.scale, this.transform.scale)
+                    gl.uniform2fv(this.uniforms.translate, [this.transform.position.x, this.transform.position.y])
+
+                    // Set color
+                    gl.uniform3fv(this.uniforms.color, this.color)
+                }
+
+                draw()
+                {
+                    this.beforeDraw()
+
+                    gl.drawArrays(gl.TRIANGLES, 0, 3)
+                }
+            }
+
+
+            /*
+             * Init GL context and setup the scene
+             */
+            function init()
+            {
+                let canvas = document.getElementById("canvas")
+                gl = WebGLUtils.setupWebGL(canvas)
+
+                gl.clearColor(0.0, 0.0, 0.0, 1.0)
+
+                context.triangle = new Triangle([0.8, 0.2, 0.0])
+            }
+
+            /*
+             * Animation loop
+             * Called once per frame
+             *
+             * Schedule next frame
+             * Update the current state
+             * Call render routine
+             */
+            function animate()
+            {
+                // Schedule next frame
+                window.requestAnimationFrame(animate)
+
+                // Update phase for animation (ramp from 0 to 1 during the period interval)
+                context.animation.phase = ((Date.now() / 1000) % context.animation.period) / context.animation.period
+
+                // Update the triangle position and scale from context params
+                context.triangle.setScale(context.params.scale)
+                context.triangle.setPosition(context.params.translateX, context.params.translateY)
+
+                render()
+            }
+
+            /*
+             * Render routine, draw everything
+             */
+            function render()
+            {
+                // Clear the frame buffer
+                gl.clear(gl.COLOR_BUFFER_BIT)
+
+                // Draw the triangle
+                context.triangle.draw()
+            }
+
+            init()
+            animate()
+
+        </script>
+
+    </body>
+
+</html>
+

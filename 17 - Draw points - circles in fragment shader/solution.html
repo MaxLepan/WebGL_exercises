@@ -1,0 +1,121 @@
+<!doctype html>
+
+<html>
+
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+
+        <meta name="author" content="Yann Gilquin">
+        <meta name="description" content="Formation WebGL - Draw points - circles in fragment shader">
+
+        <title>Draw points - circles in fragment shader</title>
+
+        <style>
+            html, body {
+                background-color: #202020;
+                margin: 0px;
+                overflow: hidden;
+                width: 100%;
+                height: 100%;
+            }
+
+            canvas {
+                width: 400px;
+                height: 400px;
+                margin: 50px;
+                touch-action: none;
+            }
+        </style>
+
+        <script type="text/javascript" src="../lib/webgl-utils.js"></script>
+        <script type="text/javascript" src="../lib/webgl-shader-utils.js"></script>
+        <script type="text/javascript" src="../lib/webgl-helpers.js"></script>
+    </head>
+
+    <body>
+        <canvas id="canvas" width="400" height="400"></canvas>
+
+        <script>
+            /*
+             * Fragment shader advanced
+             * 
+             * In POINTS mode, draw 2 circle points using the point space
+             * Compute the distance of each fragment to the center
+             * Apply step or smoothstep to draw hard or soft circles
+             */
+
+            let aPosition, uColor, uSmooth
+
+            let canvas = document.getElementById("canvas")
+            let gl = WebGLUtils.setupWebGL(canvas)
+
+
+            function init()
+            {
+                let VERTEX_SHADER = WebGLShaderUtils.shaderArrayToString([
+                    "attribute vec2 aPosition;",
+
+                    "void main()",
+                    "{",
+                    "   gl_Position = vec4(aPosition, 0.0, 1.0);",
+                    "   gl_PointSize = 180.0;",
+                    "}"
+                ])
+
+                let FRAGMENT_SHADER = WebGLShaderUtils.shaderArrayToString([
+                    "precision mediump float;",
+
+                    "uniform float uSmooth;",
+                    "uniform vec3 uColor;",
+
+                    "void main()",
+                    "{",
+                    "   vec2 center = vec2(0.5);",
+                    "   float radius = length(gl_PointCoord.xy - center);",
+                    "   float d;",
+                    "   if (uSmooth == 1.0)",
+                    "       d = smoothstep(0.1, 0.45, radius);",
+                    "   else",
+                    "       d = step(0.45, radius);",
+                    "   gl_FragColor.rgb = uColor * (1.0 - d);",
+                    "   gl_FragColor.a = 1.;",
+                    "}"
+                ])
+
+                gl.clearColor(0.0, 0.0, 0.0, 1.0)
+
+                let program = WebGLShaderUtils.createProgram(gl, VERTEX_SHADER, FRAGMENT_SHADER)
+                gl.useProgram(program)
+
+                aPosition = WebGLHelpers.getAttributeLocation(program, "aPosition")
+                uColor = WebGLHelpers.getUniformLocation(program, "uColor")
+                uSmooth = WebGLHelpers.getUniformLocation(program, "uSmooth")
+            }
+
+            function draw()
+            {
+                gl.clear(gl.COLOR_BUFFER_BIT)
+
+                // Draw left point, hard and blue
+                gl.vertexAttrib2f(aPosition, -0.5, 0.0)
+                gl.uniform1f(uSmooth, 0.0)
+                gl.uniform3f(uColor, 0.0, 0.0, 0.8)
+                gl.drawArrays(gl.POINTS, 0, 1)
+                
+                // Draw right point, soft and green
+                gl.vertexAttrib2f(aPosition, 0.5, 0.0)
+                gl.uniform1f(uSmooth, 1.0)
+                gl.uniform3f(uColor, 0.0, 0.8, 0.0)
+                gl.drawArrays(gl.POINTS, 0, 1)                
+            }
+
+            init()
+            draw()
+
+        </script>
+
+    </body>
+
+</html>
+    

@@ -1,0 +1,293 @@
+<!doctype html>
+
+<html>
+
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+
+        <meta name="author" content="Yann Gilquin">
+        <meta name="description" content="Formation WebGL - Draw a polygon with indexed geometry">
+
+        <title>Draw a polygon with indexed geometry</title>
+
+        <style>
+            html, body {
+                background-color: #202020;
+                margin: 0px;
+                overflow: hidden;
+                width: 100%;
+                height: 100%;
+            }
+
+            canvas {
+                width: 400px;
+                height: 400px;
+                margin: 50px;
+                touch-action: none;
+            }
+        </style>
+
+        <script type="text/javascript" src="../lib/webgl-utils.js"></script>
+        <script type="text/javascript" src="../lib/webgl-shader-utils.js"></script>
+        <script type="text/javascript" src="../lib/webgl-helpers.js"></script>
+        <script type="text/javascript" src="../lib/dat.gui.js"></script>
+    </head>
+
+    <body>
+        <canvas id="canvas" width="400" height="400"></canvas>
+
+        <script>
+            /*
+             * Draw a polygon with indexed geometry
+             * Number of sides and radius is set by dat.gui params
+             * Introduce deleting objects and the need of some destroy method
+             */
+
+            // Keep the WebGL context global to make code easier to read
+            let gl
+
+            // Use only one global context object to keep code clear
+            let context = {
+                rectangle: null
+            }
+
+            /*
+             * Graphical User Interface params function
+             * Define params to control any runtime property
+             */
+            var GUIParams = function() {
+                this.sides = 6
+                this.radius = 1.0
+            }
+
+            /*
+             * Create GUI and params instances
+             * Setup the interface with property association
+             */
+            var params = new GUIParams()
+            var gui = new dat.GUI()
+
+            gui.add(params, 'sides', 3, 20, 1)
+            gui.add(params, 'radius', 0, 1, 0.05)
+
+            /*
+             * Polygon class
+             * 
+             * Define its shaders and geometry
+             *
+             */
+            class Polygon
+            {
+                constructor(sides, radius, color)
+                {
+                    /*
+                     * Members
+                     */
+                    this.sides = sides
+                    this.radius = radius
+                    this.color = color
+
+                    /*
+                     * Program and shaders definitions
+                     */
+                    this.program = null
+                    this.uniforms = {}
+                    this.attributes = {}
+
+                    /*
+                     * Geometry definitions
+                     */
+                    this.vertexBuffer = null
+                    this.indexBuffer = null
+                    this.nIndices = 0
+
+                    /*
+                     * Init program and geometry
+                     */
+                    this.initProgram()
+                    this.initGeometry()
+                }
+
+                /*
+                 * Release all objects created by WebGL (buffers, textures, programs)
+                 */
+                destroy()
+                {
+                    // Use gl.deleteProgram and gl.deleteBuffer (unbind first)
+                    // ..
+                }
+
+                static get vertexShader()
+                {
+                    return WebGLShaderUtils.shaderArrayToString([
+                        "attribute vec4 aPosition;",
+
+                        "void main()",
+                        "{",
+                        "   gl_Position = aPosition;",
+                        "}"
+                    ])
+                }
+
+                static get fragmentShader()
+                {
+                    return WebGLShaderUtils.shaderArrayToString([
+                        "precision mediump float;",
+
+                        "uniform vec3 uColor;",
+
+                        "void main()",
+                        "{",
+                        "   gl_FragColor = vec4(uColor, 1.0);",
+                        "}"
+                    ])
+                }
+
+                initProgram()
+                {
+                    // Create the program with shader code
+                    this.program = WebGLShaderUtils.createProgram(gl, Polygon.vertexShader, Polygon.fragmentShader)
+
+                    // Use the program to allow access to attributes and uniforms location                    
+                    gl.useProgram(this.program)
+
+                    // Get all attributes locations
+                    this.attributes.position = WebGLHelpers.getAttributeLocation(this.program, "aPosition")
+                    
+                    // Get all uniforms locations
+                    this.uniforms.color = WebGLHelpers.getUniformLocation(this.program, "uColor")
+                }
+
+                initGeometry()
+                {
+                    let positions = [];
+
+                    // Positions computing
+
+                    // Add the starting point at the center. It will join all triangles
+                    positions.push(0.0, 0.0);
+
+                    // For each vertex of the geometry, compute a point on the circle around
+                    // in polar coordinates, and convert in cartesian x,y values
+                    for (let i=0; i<this.sides; i++)
+                    { 
+                        // ..
+                        // positions.push(..)
+                    }
+
+                    // Create the vertex buffer
+                    this.vertexBuffer = gl.createBuffer()
+
+                    // Bind the new buffer to the ARRAY BUFFER
+                    gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer)
+                    
+                    // Set positions data into the buffer
+                    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW)
+
+
+                    // Indices definition to setup mesh faces
+                    let indices = [];
+
+                    // For each face, add 3 indices defining a triangle (CCW order)
+                    for (let i=0; i<this.sides; i++)
+                    {
+                        // let i0 = ..
+                        // let i1 = ..
+
+                        // indices.push(.., .., ..);
+                    }
+
+                    this.nIndices = indices.length
+
+                    // Create the index buffer
+                    this.indexBuffer = gl.createBuffer();
+
+                    // Bind the new buffer to the ELEMENT_ARRAY BUFFER to enable indexed geometry
+                    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.indexBuffer)
+
+                    // Set indices data into the buffer
+                    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint8Array(indices), gl.STATIC_DRAW)
+                }
+
+                beforeDraw()
+                {
+                    // Use the program
+                    gl.useProgram(this.program)
+
+                    // Bind the vertex buffer
+                    gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer)
+                    
+                    // Define how the position attribute will be read into the buffer
+                    gl.vertexAttribPointer(this.attributes.position, 2, gl.FLOAT, false, 0, 0)
+                    
+                    // Enable the position attribute
+                    gl.enableVertexAttribArray(this.attributes.position)
+
+                    // Bind the index buffer
+                    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.indexBuffer)
+                }
+
+                draw()
+                {
+                    this.beforeDraw()
+
+                    // Set current uniform : warning this is a rendundant call, do it once if you can
+                    gl.uniform3fv(this.uniforms.color, this.color)
+
+                    // Draw
+                    gl.drawElements(gl.TRIANGLES, this.nIndices, gl.UNSIGNED_BYTE, 0)
+                }
+            }
+
+            /*
+             * Init GL context and setup the scene
+             */
+            function init()
+            {
+                let canvas = document.getElementById("canvas")
+                gl = WebGLUtils.setupWebGL(canvas)
+
+                gl.clearColor(0.0, 0.0, 0.0, 1.0)
+
+                context.polygon = new Polygon(params.sides, params.radius, [1.0, 0.4, 0.0])
+            }
+
+            /*
+             * Animation loop
+             */
+            function animate()
+            {
+                // Schedule next frame
+                window.requestAnimationFrame(animate)
+
+                // Check if we need to recreate the polygon
+                if (context.polygon.sides !== params.sides)
+                {
+                    context.polygon.destroy()
+                }
+
+                context.polygon = new Polygon(params.sides, params.radius, [1.0, 0.4, 0.0])
+
+                // Render the scene
+                render()
+            }
+            /*
+             * Draw the triangle
+             */
+            function render()
+            {
+                // Clear the frame buffer
+                gl.clear(gl.COLOR_BUFFER_BIT)
+
+                // Draw the triangle
+                context.polygon.draw()
+            }
+
+            init()
+            animate()
+
+        </script>
+    </body>
+
+</html>
