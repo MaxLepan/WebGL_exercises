@@ -173,7 +173,14 @@
                 {
                     // Vertices definition (positions X, Y, Z and colors R, G, B)
                     const positions = new Float32Array([
-                        // ..
+                        -0.5, -0.5, -0.5,    1.0, 0.0, 0.0, // 0
+                        -0.5, 0.5, -0.5,     0.0, 1.0, 0.0, // 1
+                        0.5, 0.5, -0.5,      0.0, 0.0, 1.0, // 2
+                        0.5, -0.5, -0.5,     1.0, 1.0, 0.0, // 3
+                        -0.5, -0.5, 0.5,     1.0, 0.0, 1.0, // 4
+                        -0.5, 0.5, 0.5,      0.0, 1.0, 1.0, // 5
+                        0.5, 0.5, 0.5,       1.0, 1.0, 1.0, // 6 
+                        0.5, -0.5, 0.5,      0.5, 0.5, 0.5  // 7
                     ]);
 
                     this.vertexBuffer = gl.createBuffer()
@@ -182,7 +189,18 @@
 
                     // Indices to describe the cube faces
                     var indices = new Uint8Array([
-                        // ..
+                        0, 1, 2, // 1er triangle (face arrière)
+                        0, 2, 3, // 2ème triangle (face arrière)
+                        4, 5, 6, // 1er triangle (face avant)
+                        4, 6, 7, // 2ème triangle (face avant)
+                        0, 4, 7, // 1er triangle (face dessous)
+                        0, 7, 3, // 2ème triangle (face dessous)
+                        1, 5, 6, // 1er triangle (face dessus)
+                        1, 6, 2, // 2ème triangle (face dessus)
+                        0, 1, 5, // 1er triangle (face gauche)
+                        0, 5, 4, // 2ème triangle (face gauche)
+                        3, 2, 6, // 1er triangle (face droite)
+                        3, 6, 7  // 2ème triangle (face droite)
                     ]);
 
                     this.nIndices = indices.length
@@ -220,18 +238,21 @@
                     gl.useProgram(this.program)
 
                     // Bind the vertex and index buffer
-                    // ..
+                    gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer)
+                    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.indexBuffer)
                     
                     // Define how the position and color attributes will be read into the buffer
                     const bpe = Float32Array.BYTES_PER_ELEMENT
-                    // ..
+                    gl.vertexAttribPointer(this.attributes.position, 3, gl.FLOAT, false, 6 * bpe, 0)
+                    gl.vertexAttribPointer(this.attributes.color, 3, gl.FLOAT, false, 6 * bpe, 3 * bpe)
                     
                     // Enable the attributes
-                    // ..
+                    gl.enableVertexAttribArray(this.attributes.position)
+                    gl.enableVertexAttribArray(this.attributes.color)
 
                     // Compute and set the transform matrix
                     this.updateTransformMatrix()
-                    // ..
+                    gl.uniformMatrix4fv(this.uniforms.transformMatrix, false, this.transformMatrix.elements)
                 }
 
                 draw()
