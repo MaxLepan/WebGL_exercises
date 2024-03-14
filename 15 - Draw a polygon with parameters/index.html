@@ -80,320 +80,9 @@
 
         // Use only one global context object to keep code clear
         let context = {
-            triangle: null
-        }
-
-        /*
-         * Triangle class
-         * 
-         * Define its shaders and geometry
-         *
-         */
-        class Triangle {
-            constructor(color) {
-                this.color = color
-
-                /*
-                 * Program and shaders definitions
-                 */
-                this.program = null
-                this.uniforms = {}
-                this.attributes = {}
-
-                /*
-                 * Geometry definitions
-                 */
-                this.vertexBuffer = null
-
-                /*
-                 * Init program and geometry
-                 */
-                this.initProgram()
-                this.initGeometry()
-            }
-
-            static get vertexShader() {
-                return WebGLShaderUtils.shaderArrayToString([
-                    "attribute vec2 aPosition;",
-                    "attribute vec3 aColor;",
-                    "varying vec3 vColor;",
-                    "",
-                    "void main()",
-                    "{",
-                    "   vColor = aColor;",
-                    "   gl_Position = vec4(aPosition, 0.0, 1.0);",
-                    "}"
-                ])
-            }
-
-            static get fragmentShader() {
-                return WebGLShaderUtils.shaderArrayToString([
-                    "precision mediump float;",
-                    "",
-                    "varying vec3 vColor;",
-                    "",
-                    "void main()",
-                    "{",
-                    "   gl_FragColor = vec4(vColor, 1.0);",
-                    "}"
-                ])
-            }
-
-            initProgram() {
-                // Create the program with shader code
-                this.program = WebGLShaderUtils.createProgram(gl, Triangle.vertexShader, Triangle.fragmentShader)
-
-                // Use the program to allow access to attributes and uniforms location                    
-                gl.useProgram(this.program)
-
-                // Get all attributes locations
-                this.attributes.position = WebGLHelpers.getAttributeLocation(this.program, "aPosition")
-                this.attributes.color = WebGLHelpers.getAttributeLocation(this.program, "aColor")
-
-                // Get all uniforms locations
-                // this.uniforms.color = WebGLHelpers.getUniformLocation(this.program, "uColor")
-            }
-
-            initGeometry() {
-                // vertices definition (2D clip space)
-                const vertices = new Float32Array([
-                    -0.25, 0.0,
-                    0.25, Math.sqrt(3) / 2,
-                    0.75, 0.0
-                ]);
-
-                const colors = new Float32Array([
-                    1.0, 0.0, 0.0,
-                    0.0, 1.0, 0.0,
-                    0.0, 0.0, 1.0
-                ]);
-
-                this.vertexBufferBPE = vertices.BYTES_PER_ELEMENT
-                this.colorBufferBPE = colors.BYTES_PER_ELEMENT
-
-                // Create the vertex buffer
-                this.vertexBuffer = gl.createBuffer()
-
-                // Bind the new buffer to the ARRAY BUFFER
-                gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer)
-
-                // Set vertices data into the buffer
-                gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW)
-
-                // Create the color buffer
-                this.colorBuffer = gl.createBuffer()
-
-                // Bind the new buffer to the ARRAY BUFFER
-                gl.bindBuffer(gl.ARRAY_BUFFER, this.colorBuffer)
-
-                // Set color data into the buffer
-                gl.bufferData(gl.ARRAY_BUFFER, colors, gl.STATIC_DRAW)
-            }
-
-            beforeDraw() {
-                // Use the program
-                gl.useProgram(this.program)
-
-                // Bind the vertex buffer
-                gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer)
-
-                // Define how the position attribute will be read into the buffer. 
-                gl.vertexAttribPointer(
-                    this.attributes.position,
-                    2,
-                    gl.FLOAT,
-                    false,
-                    2 * this.vertexBufferBPE,
-                    0
-                )
-
-                gl.bindBuffer(gl.ARRAY_BUFFER, this.colorBuffer)
-
-                gl.vertexAttribPointer(
-                    this.attributes.color,
-                    3,
-                    gl.FLOAT,
-                    false,
-                    3 * this.colorBufferBPE,
-                    0
-                )
-
-                // Enable the position attribute
-                gl.enableVertexAttribArray(this.attributes.position)
-                gl.enableVertexAttribArray(this.attributes.color)
-            }
-
-            draw() {
-                this.beforeDraw()
-
-                // Set current uniform : warning this is a rendundant call, do it once if you can
-                gl.enableVertexAttribArray(this.uniforms.color, this.color)
-
-                // Draw
-                gl.drawArrays(gl.TRIANGLES, 0, 3)
-            }
-        }
-
-        class Rectangle {
-            constructor(color) {
-                this.color = color
-
-                /*
-                 * Program and shaders definitions
-                 */
-                this.program = null
-                this.uniforms = {}
-                this.attributes = {}
-
-                /*
-                 * Geometry definitions
-                 */
-                this.vertexBuffer = null
-
-                /*
-                 * Init program and geometry
-                 */
-                this.initProgram()
-                this.initGeometry()
-            }
-
-            static get vertexShader() {
-                return WebGLShaderUtils.shaderArrayToString([
-                    "attribute vec2 aPosition;",
-                    "attribute vec3 aColor;",
-                    "varying vec3 vColor;",
-                    "",
-                    "void main()",
-                    "{",
-                    "   vColor = aColor;",
-                    "   gl_Position = vec4(aPosition, 0.0, 1.0);",
-                    "}"
-                ])
-            }
-
-            static get fragmentShader() {
-                return WebGLShaderUtils.shaderArrayToString([
-                    "precision mediump float;",
-                    "",
-                    "varying vec3 vColor;",
-                    "",
-                    "void main()",
-                    "{",
-                    "   gl_FragColor = vec4(vColor, 1.0);",
-                    "}"
-                ])
-            }
-
-            initProgram() {
-                // Create the program with shader code
-                this.program = WebGLShaderUtils.createProgram(gl, Rectangle.vertexShader, Rectangle.fragmentShader)
-
-                // Use the program to allow access to attributes and uniforms location                    
-                gl.useProgram(this.program)
-
-                // Get all attributes locations
-                this.attributes.position = WebGLHelpers.getAttributeLocation(this.program, "aPosition")
-                this.attributes.color = WebGLHelpers.getAttributeLocation(this.program, "aColor")
-
-            }
-
-            initGeometry() {
-                // vertices definition (2D clip space)
-                const vertices = new Float32Array([
-                    -0.5, -0.75,
-                    0.5, -0.75,
-                    0.5, 0.75,
-                    -0.5, 0.75
-                ]);
-
-                const colors = new Float32Array([
-                    1.0, 0.0, 0.0,
-                    0.0, 1.0, 0.0,
-                    0.0, 0.0, 1.0,
-                    1.0, 1.0, 0.0
-                ]);
-
-                this.vertexBufferBPE = vertices.BYTES_PER_ELEMENT
-                this.colorBufferBPE = colors.BYTES_PER_ELEMENT
-
-                // Create the vertex buffer
-                this.vertexBuffer = gl.createBuffer()
-
-                // Bind the new buffer to the ARRAY BUFFER
-                gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer)
-
-                // Set vertices data into the buffer
-                gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW)
-
-                // Create the color buffer
-                this.colorBuffer = gl.createBuffer()
-
-                // Bind the new buffer to the ARRAY BUFFER
-                gl.bindBuffer(gl.ARRAY_BUFFER, this.colorBuffer)
-
-                // Set color data into the buffer
-                gl.bufferData(gl.ARRAY_BUFFER, colors, gl.STATIC_DRAW)
-
-                // Create the index buffer
-                this.indexBuffer = gl.createBuffer()
-
-                // Bind the new buffer to the ELEMENT ARRAY BUFFER
-                gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.indexBuffer)
-
-                // Set indices data into the buffer
-                const indices = new Uint16Array([
-                    0, 1, 2,
-                    0, 2, 3
-                ])
-
-                gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.STATIC_DRAW)
-
-                this.indicesLength = indices.length
-
-            }
-
-            beforeDraw() {
-                // Use the program
-                gl.useProgram(this.program)
-
-                // Bind the vertex buffer
-                gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer)
-
-                // Define how the position attribute will be read into the buffer. 
-                gl.vertexAttribPointer(
-                    this.attributes.position,
-                    2,
-                    gl.FLOAT,
-                    false,
-                    2 * this.vertexBufferBPE,
-                    0
-                )
-
-                gl.bindBuffer(gl.ARRAY_BUFFER, this.colorBuffer)
-
-                gl.vertexAttribPointer(
-                    this.attributes.color,
-                    3,
-                    gl.FLOAT,
-                    false,
-                    3 * this.colorBufferBPE,
-                    0
-                )
-
-                // Enable the position attribute
-                gl.enableVertexAttribArray(this.attributes.position)
-                gl.enableVertexAttribArray(this.attributes.color)
-            }
-
-            draw() {
-                this.beforeDraw()
-
-                // Set current uniform : warning this is a rendundant call, do it once if you can
-                gl.enableVertexAttribArray(this.uniforms.color, this.color)
-
-                // Draw
-                gl.drawElements(gl.TRIANGLES, this.indicesLength, gl.UNSIGNED_SHORT, 0)
-            }
+            triangle: null,
+            rectangle: null,
+            polygon: null
         }
 
         class Polygon {
@@ -465,17 +154,17 @@
                     vertices.push(
                         0.0, 
                         0.0,
-                        this.radius * Math.cos(2 * Math.PI * i / this.sides),
-                        this.radius * Math.sin(2 * Math.PI * i / this.sides),
-                        this.radius * Math.cos(2 * Math.PI * (i + 1) / this.sides),
-                        this.radius * Math.sin(2 * Math.PI * (i + 1) / this.sides)
+                        this.radius * Math.cos(2.0 * Math.PI * i / this.sides),
+                        this.radius * Math.sin(2.0 * Math.PI * i / this.sides),
+                        this.radius * Math.cos(2.0 * Math.PI * (i + 1.0) / this.sides),
+                        this.radius * Math.sin(2.0 * Math.PI * (i + 1.0) / this.sides)
                     )
 
-                    const triangleColorElement = Math.random()
+                    const triangleColor = [Math.random(), Math.random(), Math.random()]
                     colors.push(
-                        triangleColorElement, triangleColorElement, triangleColorElement, 
-                        triangleColorElement, triangleColorElement, triangleColorElement, 
-                        triangleColorElement, triangleColorElement, triangleColorElement
+                        triangleColor[0], triangleColor[1], triangleColor[2], 
+                        triangleColor[0], triangleColor[1], triangleColor[2], 
+                        triangleColor[0], triangleColor[1], triangleColor[2]
                     )
 
                     // indices.push(0, i, i + 1)
@@ -505,24 +194,6 @@
                 // Set color data into the buffer
                 gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(colors), gl.STATIC_DRAW)
 
-                // Create the index buffer
-                // this.indexBuffer = gl.createBuffer()
-
-                // // Bind the new buffer to the ELEMENT ARRAY BUFFER
-                // gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.indexBuffer)
-
-                // // Set indices data into the buffer
-                // // let indices = new Uint16Array([
-                // //     0, 1, 2,
-                // //     0, 2, 3
-                // // ])
-
-                // console.log(indices)
-
-                // gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW)
-
-                // this.indicesLength = indices.length
-
             }
 
             beforeDraw() {
@@ -533,25 +204,11 @@
                 gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer)
 
                 // Define how the position attribute will be read into the buffer. 
-                gl.vertexAttribPointer(
-                    this.attributes.position,
-                    2,
-                    gl.FLOAT,
-                    false,
-                    0,
-                    0
-                )
+                gl.vertexAttribPointer( this.attributes.position, 2, gl.FLOAT, false, 0, 0)
 
                 gl.bindBuffer(gl.ARRAY_BUFFER, this.colorBuffer)
 
-                gl.vertexAttribPointer(
-                    this.attributes.color,
-                    3,
-                    gl.FLOAT,
-                    false,
-                    0,
-                    0
-                )
+                gl.vertexAttribPointer( this.attributes.color, 3, gl.FLOAT, false, 0, 0)
 
                 // Enable the position attribute
                 gl.enableVertexAttribArray(this.attributes.position)
@@ -561,12 +218,7 @@
             draw() {
                 this.beforeDraw()
 
-                // Set current uniform : warning this is a rendundant call, do it once if you can
-                // gl.enableVertexAttribArray(this.uniforms.color, this.color)
-
-                // Draw
-                // gl.drawElements(gl.TRIANGLES, this.indicesLength, gl.UNSIGNED_SHORT, 0)
-                gl.drawArrays(gl.TRIANGLE, 0, this.sides * 3)
+                gl.drawArrays(gl.TRIANGLES, 0, this.sides * 3)
             }
         }
 
@@ -579,9 +231,7 @@
 
             gl.clearColor(0.0, 0.0, 0.0, 1.0)
 
-            // context.triangle = new Triangle([1.0, 0.0, 0.0])
-            // context.rectangle = new Rectangle([1.0, 0.0, 0.0])
-            context.polygon = new Polygon(6, 1)
+            context.polygon = new Polygon(6, 1.0)
         }
 
         /*
@@ -591,10 +241,6 @@
             // Clear the frame buffer
             gl.clear(gl.COLOR_BUFFER_BIT)
 
-            // Draw the triangle
-            // context.triangle.draw()
-
-            // context.rectangle.draw()
             context.polygon.draw()
         }
 
@@ -605,18 +251,20 @@
         let side_nb = document.getElementById("side_nb")
         side_nb.textContent = sides.value
 
-        sides.addEventListener("input", function (event) {
-            side_nb.textContent = sides.value
-            context.polygon = new Polygon(sides.value, 1)
-            context.polygon.draw()
-        })
-
         let radius = document.getElementById("radius")
         let radius_value = document.getElementById("radius_value")
         radius_value.textContent = radius.value
 
+        sides.addEventListener("input", function (event) {
+            side_nb.textContent = sides.value
+            context.polygon = new Polygon(sides.value, radius.value)
+            context.polygon.draw()
+        })
+
         radius.addEventListener("input", function (event) {
             radius_value.textContent = radius.value
+            context.polygon = new Polygon(sides.value, radius.value)
+            context.polygon.draw()
         })
 
     </script>
