@@ -242,7 +242,7 @@
                     // return matrixC.multiply(matrixB).multiply(matrixA);
                     // Remember: matrix product is not commutative
 
-                    this.transformMatrix = mTranslation.clone().multiply(mScale).multiply(mRotation)
+                    this.transformMatrix = mScale.clone().multiply(mRotation).multiply(mTranslation)
                 }
 
                 beforeDraw()
