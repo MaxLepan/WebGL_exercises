@@ -16,13 +16,13 @@
                 background-color: #202020;
                 margin: 0px;
                 overflow: hidden;   
-                width: 100%;
-                height: 100%;
+                width: 100vw;
+                height: 100vh;
             }
 
             canvas {
-                width: 400px;
-                height: 400px;
+                width: 80%;
+                height: 80%;
                 margin: 50px;
                 touch-action: none;
             }
@@ -306,10 +306,10 @@
                         "    gl_Position = uProjectionMatrix * uViewMatrix * uModelMatrix * aPosition;",
 
                         // Light computation
-                        // "    vec3 normalWorld = ..
+                        "    vec3 normalWorld = (uNormalMatrix * vec4(aNormal, 1.0)).xyz;",
         
                         // dot operator (scalar product) is used with unitary vectors to find cosinus of the angle between the two vectors. Using max(0, value) sets to 0 every negative value, i.e. lights coming from behind
-                        // "    float NDotL = ..
+                        "    float NDotL = dot(normalize(normalWorld), normalize(uDirLightDirection));",
 
                         "    float mixDirLight = max(NDotL, 0.0);",
                         
@@ -431,22 +431,40 @@
                     // Normal vectors
                     const normals = new Float32Array([
                         // Front face
-                        // ..
-
+                        0, 0, 1,
+                        0, 0, 1,
+                        0, 0, 1,
+                        0, 0, 1,
+                        
                         // Back face
-                        // ..
+                        0, 0, -1,
+                        0, 0, -1,
+                        0, 0, -1,
+                        0, 0, -1,
 
                         // Up face
-                        // ..
+                        0, 1, 0,
+                        0, 1, 0,
+                        0, 1, 0,
+                        0, 1, 0,
                         
                         // Down face
-                        // ..
+                        0, -1, 0,
+                        0, -1, 0,
+                        0, -1, 0,
+                        0, -1, 0,
 
                         // Right face
-                        // ..
+                        1, 0, 0,
+                        1, 0, 0,
+                        1, 0, 0,
+                        1, 0, 0,
                         
                         // Left face
-                        // ..
+                        -1, 0, 0,
+                        -1, 0, 0,
+                        -1, 0, 0,
+                        -1, 0, 0
                     ])
 
                     // Create the vertex buffer
@@ -572,7 +590,7 @@
                     this.modelMatrix = mTranslate.multiply(mRotate).multiply(mScale)
 
                     // Normal matrix is the model inversed transposed
-                    // this.normalMatrix = ..
+                    this.normalMatrix = this.modelMatrix.invert().transpose()
                 }
 
                 beforeDraw()
@@ -835,7 +853,7 @@
                 
                 // Create a cube
                 context.cube = new Cube()
-                context.cube.transform.scale = new Vector3([1.5, 1.5, 1.5])
+                context.cube.transform.scale = new Vector3([0.75, 0.75, 0.75])
   
                 // Load a texture for the cube and the sphere
                 context.loader = new TextureLoader()
