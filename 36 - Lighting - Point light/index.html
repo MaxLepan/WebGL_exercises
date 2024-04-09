@@ -16,13 +16,12 @@
                 background-color: #202020;
                 margin: 0px;
                 overflow: hidden;
-                width: 100vw;
-                height: 100vh;
+                width: 100%;
+                height: 100%;
             }
 
             canvas {
-                width: 80%;
-                height: 80%;
+                height: 100%;
                 margin: 50px;
                 touch-action: none;
             }
@@ -314,14 +313,14 @@
                         "    gl_Position = uProjectionMatrix * uViewMatrix * uModelMatrix * aPosition;",
 
                         // Compute transformed normal
-                        // "    vec3 normalWorld = ..
+                        "    vec3 normalWorld = (uNormalMatrix * vec4(aNormal, 1.0)).xyz;",
 
                         // Compute position in world space and the light direction
-                        // "    vec4 positionWorld = ..
-                        // "    vec3 lightDirection = ..
+                        "    vec4 positionWorld = uModelMatrix * aPosition;",
+                        "    vec3 lightDirection = normalize(uPointLightPosition - positionWorld.xyz);",
         
                         // dot operator (scalar product) is used with unitary vectors to find cosinus of the angle between the two vectors. Using max(0, value) sets to 0 every negative value, i.e. lights coming from behind
-                        // "    float NdotL = ..
+                        "    float NdotL = dot(normalize(normalWorld), lightDirection);",
 
                         "    vec3 ambient = uAmbientLightColor;",
                         "    vec3 diffuse = uPointLightColor * NdotL;",
