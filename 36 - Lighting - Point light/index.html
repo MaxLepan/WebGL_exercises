@@ -1,0 +1,934 @@
+<!doctype html>
+
+<html>
+
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+
+        <meta name="author" content="Yann Gilquin">
+        <meta name="description" content="Formation WebGL - Point light">
+
+        <title>Point light</title>
+
+        <style>
+            html, body {
+                background-color: #202020;
+                margin: 0px;
+                overflow: hidden;
+                width: 100vw;
+                height: 100vh;
+            }
+
+            canvas {
+                width: 80%;
+                height: 80%;
+                margin: 50px;
+                touch-action: none;
+            }
+        </style>
+
+        <script type="text/javascript" src="../lib/webgl-utils.js"></script>
+        <script type="text/javascript" src="../lib/webgl-shader-utils.js"></script>
+        <script type="text/javascript" src="../lib/webgl-helpers.js"></script>
+        <script type="text/javascript" src="../lib/cuon-matrix.js"></script>
+        <script type="text/javascript" src="../lib/dat.gui.js"></script>
+    </head>
+
+    <body>
+        <canvas id="canvas" width="400" height="400"></canvas>
+
+        <script>
+            /*
+             * Point light
+             * Light with a position in world space, throwing light equally
+             * in any direction
+             */
+
+            // Keep the WebGL context global to make code easier to read
+            let gl
+
+            // Use only one global context object to keep code clear
+            let context = {
+                animation: {
+                    period: 15,
+                    phase: 0
+                },
+                cube: null,
+                sphere: null,
+                plane: null,
+                loader: null,
+                renderer: null,
+                drawBuffer: null,
+                ambientLight: null,
+                pointLight: null,
+                camera: null
+            }
+
+            class GUI
+            {
+                constructor()
+                {
+                    /*
+                     * Graphical User In terface params class
+                     * Define params to control runtime properties
+                     */
+                    class GUIParams {
+                        constructor() {
+                            this.ambientLightColor = "#43678b"
+
+                            this.pointLightColor = "#abdb7b"
+                            this.pointLightX = 5
+                            this.pointLightY = 0
+                            this.pointLightZ = 2
+                        }
+                    }
+
+                    this.params = new GUIParams()
+                    this.ui = new dat.GUI()
+
+                    let ambient = this.ui.addFolder("Ambient Light")
+                    ambient.open()
+                    ambient.addColor(this.params, "ambientLightColor").name("color")
+
+                    let point = this.ui.addFolder("Point Light")
+                    point.open()
+                    point.addColor(this.params, "pointLightColor").name("color")
+                    point.add(this.params, "pointLightX", -10, 10, 0.1).name("x")
+                    point.add(this.params, "pointLightY", -10, 10, 0.1).name("y")
+                    point.add(this.params, "pointLightZ", -10, 10, 0.1).name("z")
+                }
+            }
+
+            class AmbientLight
+            {
+                constructor(color)
+                {
+                    this.color = new Color(color)
+                }
+            }
+
+            class DirectionalLight
+            {
+                constructor(color, direction)
+                {
+                    this.color = new Color(color)
+
+                    this.direction = Array.isArray(direction) ? new Vector3(direction[0], direction[1], direction[2]) : new Vector3()
+                }
+            }
+
+            class PointLight
+            {
+                constructor(color, position)
+                {
+                    this.color = new Color(color)
+
+                    this.position = Array.isArray(position) ? new Vector3(position[0], position[1], position[2]) : new Vector3()
+                }
+            }
+
+            /*
+             * Camera class
+             */
+            class Camera
+            {
+                constructor()
+                {
+                    // View params
+                    this.position = new Vector3([0,0.5,2])
+                    this.target = new Vector3([0,0,0])
+                    this.upVector = new Vector3([0,1,0])
+
+                    // Projection params
+                    this.aspect = gl.drawingBufferWidth / gl.drawingBufferHeight
+                    this.vFOV = 90
+                    this.near = 0.1
+                    this.far = 1000
+
+                    // Matrices
+                    this.viewMatrix = new Matrix4()
+                    this.projectionMatrix = new Matrix4()
+
+                    this.computeViewMatrix()
+                    this.computeProjectionMatrix()
+                }
+
+                /*
+                 * Matrices computation
+                 */
+
+                computeViewMatrix()
+                {
+                    this.viewMatrix.setLookAt(
+                        this.position.elements[0], this.position.elements[1], this.position.elements[2],
+                        this.target.elements[0], this.target.elements[1], this.target.elements[2],
+                        this.upVector.elements[0], this.upVector.elements[1], this.upVector.elements[2])
+                }
+
+                computeProjectionMatrix()
+                {
+                    this.projectionMatrix.setPerspective(this.vFOV, this.aspect, this.near, this.far)
+                }
+
+                /*
+                 * Setters
+                 */
+
+                setPosition(x, y, z)
+                {
+                    this.position.elements[0] = x
+                    this.position.elements[1] = y
+                    this.position.elements[2] = z
+                    this.computeViewMatrix()
+                }
+
+                setTarget(x, y, z)
+                {
+                    this.target.elements[0] = x
+                    this.target.elements[1] = y
+                    this.target.elements[2] = z
+                    this.computeViewMatrix()
+                }
+
+                setFOV(fov)
+                {
+                    this.vFOV = fov
+                    this.computeProjectionMatrix()
+                }
+
+                setAspect(aspect)
+                {
+                    this.aspect = aspect
+                    this.computeProjectionMatrix()
+                }
+            }
+
+            /*
+             * Cube class
+             */
+            class Cube
+            {
+                constructor()
+                {
+                    /*
+                     * Program and shaders definitions
+                     */
+                    this.program = null
+                    this.uniforms = {}
+                    this.attributes = {}
+
+                    /*
+                     * Geometry definitions
+                     */
+                    this.vertexBuffer = null
+                    this.texCoordBuffer = null
+                    this.normalBuffer = null
+                    this.indexBuffer = null
+                    this.nIndices = 0
+
+                    /*
+                     * Texture object
+                     */
+                    this.texture = null
+
+                    /*
+                     * Object to world transform matrix
+                     */
+                    this.modelMatrix = new Matrix4()
+                    this.transform = {
+                        scale: new Vector3([1, 1, 1]),
+                        position: new Vector3(),
+                        rotation: new Vector3()
+                    }
+
+                    /*
+                     * Normal matrix transformation (model inversed and transposed)
+                     */
+                    this.normalMatrix = new Matrix4()
+
+                    /*
+                     * Init program and geometry
+                     */
+                    this.initProgram()
+                    this.initGeometry()
+                    this.updateMatrices()
+                }
+
+                destroy()
+                {
+                    if (this.program !== null)
+                    {
+                        gl.deleteProgram(this.program);
+                    }
+
+                    if (this.vertexBuffer !== null)
+                    {
+                        gl.deleteBuffer(this.vertexBuffer)                       
+                    }
+
+                    if (this.indexBuffer !== null)
+                    {
+                        gl.deleteBuffer(this.indexBuffer)                       
+                    }
+
+                    if (this.texCoordBuffer !== null)
+                    {
+                        gl.deleteBuffer(this.texCoordBuffer)                       
+                    }
+
+                    if (this.normalBuffer !== null)
+                    {
+                        gl.deleteBuffer(this.normalBuffer)                       
+                    }
+
+                    if (this.texture !== null)
+                    {
+                        gl.deleteTexture(this.texture)
+                        this.texture = null
+                    }                    
+                }
+
+                static get vertexShader()
+                {
+                    return WebGLShaderUtils.shaderArrayToString([
+                        "attribute vec4 aPosition;",
+                        "attribute vec3 aNormal;",
+                        "attribute vec2 aTexCoord;",
+
+                        "varying vec2 vTexCoord;",
+                        "varying vec3 vLightColor;",
+
+                        "uniform mat4 uModelMatrix;",
+                        "uniform mat4 uNormalMatrix;",
+                        "uniform mat4 uViewMatrix;",
+                        "uniform mat4 uProjectionMatrix;",
+
+                        "uniform vec3 uAmbientLightColor;",
+                        "uniform vec3 uPointLightPosition;",
+                        "uniform vec3 uPointLightColor;",
+
+                        "void main()",
+                        "{",
+                        "    vTexCoord = aTexCoord;",
+                        "    gl_Position = uProjectionMatrix * uViewMatrix * uModelMatrix * aPosition;",
+
+                        // Compute transformed normal
+                        // "    vec3 normalWorld = ..
+
+                        // Compute position in world space and the light direction
+                        // "    vec4 positionWorld = ..
+                        // "    vec3 lightDirection = ..
+        
+                        // dot operator (scalar product) is used with unitary vectors to find cosinus of the angle between the two vectors. Using max(0, value) sets to 0 every negative value, i.e. lights coming from behind
+                        // "    float NdotL = ..
+
+                        "    vec3 ambient = uAmbientLightColor;",
+                        "    vec3 diffuse = uPointLightColor * NdotL;",
+                        
+                        "    vLightColor = max(ambient, diffuse);",
+                        "}"
+                    ])
+                }
+
+                static get fragmentShader()
+                {
+                    return WebGLShaderUtils.shaderArrayToString([
+                        "precision mediump float;",
+
+                        "varying vec2 vTexCoord;",
+                        "varying vec3 vLightColor;",
+
+                        "uniform sampler2D uSampler;",
+
+                        "void main()",
+                        "{",
+                        "    vec4 texColor = texture2D(uSampler, vTexCoord);",
+                        "    gl_FragColor = vec4(texColor.rgb * vLightColor, texColor.a);",
+                        "}"
+                    ])
+                }
+
+                initProgram()
+                {
+                    // Create the program with shader code
+                    this.program = WebGLShaderUtils.createProgram(gl, Cube.vertexShader, Cube.fragmentShader)
+
+                    // Use the program to allow access to attributes and uniforms location                    
+                    gl.useProgram(this.program)
+
+                    // Get all the attribute locations
+                    this.attributes.position = WebGLHelpers.getAttributeLocation(this.program, "aPosition")
+                
+                    this.attributes.texCoord = WebGLHelpers.getAttributeLocation(this.program, "aTexCoord")
+                
+                    this.attributes.normal = WebGLHelpers.getAttributeLocation(this.program, "aNormal")
+
+                    // Get all the uniform locations
+                    this.uniforms.modelMatrix = WebGLHelpers.getUniformLocation(this.program, "uModelMatrix")
+
+                    this.uniforms.normalMatrix = WebGLHelpers.getUniformLocation(this.program, "uNormalMatrix")
+
+                    this.uniforms.viewMatrix = WebGLHelpers.getUniformLocation(this.program, "uViewMatrix")
+
+                    this.uniforms.projectionMatrix = WebGLHelpers.getUniformLocation(this.program, "uProjectionMatrix")
+
+                    this.uniforms.sampler = WebGLHelpers.getUniformLocation(this.program, "uSampler")
+                    
+                    this.uniforms.ambientLightColor = WebGLHelpers.getUniformLocation(this.program, "uAmbientLightColor")
+
+                    this.uniforms.pointLightColor = WebGLHelpers.getUniformLocation(this.program, "uPointLightColor")
+
+                    this.uniforms.pointLightPosition = WebGLHelpers.getUniformLocation(this.program, "uPointLightPosition")
+                }
+
+                /*
+                 * Setup buffers for vertices and indices
+                 * Create one buffer with 24 3D positions
+                 * Create one buffer with uv mapping (thus we would be able to support
+                 * different mappings by changing the buffer)
+                 * Create a buffer with the geometry indices describing
+                 * the cube faces
+                 */
+                initGeometry()
+                {
+                    // Vertices positions X, Y, Z
+                    const positions = new Float32Array([
+                        // Front
+                        -0.5, -0.5,  0.5,
+                         0.5, -0.5,  0.5,
+                         0.5,  0.5,  0.5,
+                        -0.5,  0.5,  0.5, 
+                        
+                        // Back
+                         0.5, -0.5, -0.5,
+                        -0.5, -0.5, -0.5,
+                        -0.5,  0.5, -0.5,
+                         0.5,  0.5, -0.5,
+                        
+                        // Up
+                        -0.5,  0.5, -0.5,
+                        -0.5,  0.5,  0.5,
+                         0.5,  0.5,  0.5,
+                         0.5,  0.5, -0.5,
+                        
+                        // Down
+                         0.5, -0.5, -0.5,
+                         0.5, -0.5,  0.5,
+                        -0.5, -0.5,  0.5,
+                        -0.5, -0.5, -0.5,
+                        
+                        // Right
+                         0.5, -0.5,  0.5,
+                         0.5, -0.5, -0.5,
+                         0.5,  0.5, -0.5,
+                         0.5,  0.5,  0.5,
+
+                        // Left
+                        -0.5, -0.5, -0.5,
+                        -0.5, -0.5,  0.5,
+                        -0.5,  0.5,  0.5,
+                        -0.5,  0.5, -0.5
+                    ])
+
+                    // Create the vertex buffer
+                    this.vertexBuffer = gl.createBuffer()
+
+                    // Bind the new buffer to the ARRAY BUFFER
+                    gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer)
+                    
+                    // Set positions data into the buffer
+                    gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW)
+
+
+                    // Normal vectors
+                    const normals = new Float32Array([
+                        // Front image
+                        0, 0, 1,
+                        0, 0, 1,
+                        0, 0, 1,
+                        0, 0, 1,
+
+                        // Back image
+                        0, 0, -1,
+                        0, 0, -1,
+                        0, 0, -1,
+                        0, 0, -1,
+
+                        // Up image
+                        0, 1, 0,
+                        0, 1, 0,
+                        0, 1, 0,
+                        0, 1, 0,
+                        
+                        // Down image
+                        0, -1, 0,
+                        0, -1, 0,
+                        0, -1, 0,
+                        0, -1, 0,
+
+                        // Right image
+                        1, 0, 0,
+                        1, 0, 0,
+                        1, 0, 0,
+                        1, 0, 0,
+                        
+                        // Left image
+                        -1, 0, 0,
+                        -1, 0, 0,
+                        -1, 0, 0,
+                        -1, 0, 0
+                    ])
+
+                    // Create the vertex buffer
+                    this.normalBuffer = gl.createBuffer()
+
+                    // Bind the new buffer to the ARRAY BUFFER
+                    gl.bindBuffer(gl.ARRAY_BUFFER, this.normalBuffer)
+                    
+                    // Set positions data into the buffer
+                    gl.bufferData(gl.ARRAY_BUFFER, normals, gl.STATIC_DRAW)
+
+
+                    // Vertices UV texture coordinates
+                    const texCoords = new Float32Array([
+                        // Front image
+                        2/4, 1/3,
+                        3/4, 1/3,
+                        3/4, 2/3,
+                        2/4, 2/3,
+
+                        // Back image
+                        0/4, 1/3,
+                        1/4, 1/3,
+                        1/4, 2/3,
+                        0/4, 2/3,
+                        
+                        // Up image
+                        1/4, 2/3,
+                        2/4, 2/3,
+                        2/4, 3/3,
+                        1/4, 3/3,
+                        
+                        // Down image
+                        1/4, 0/3,
+                        2/4, 0/3,
+                        2/4, 1/3,
+                        1/4, 1/3,
+
+                        // Right image
+                        3/4, 1/3,
+                        4/4, 1/3,
+                        4/4, 2/3,
+                        3/4, 2/3,
+
+                        // Left image
+                        1/4, 1/3,
+                        2/4, 1/3,
+                        2/4, 2/3,
+                        1/4, 2/3
+                    ])
+
+                    // Create the vertex buffer
+                    this.texCoordBuffer = gl.createBuffer()
+
+                    // Bind the new buffer to the ARRAY BUFFER
+                    gl.bindBuffer(gl.ARRAY_BUFFER, this.texCoordBuffer)
+                    
+                    // Set positions data into the buffer
+                    gl.bufferData(gl.ARRAY_BUFFER, texCoords, gl.STATIC_DRAW)
+
+
+                    const indices = new Uint8Array([
+                        0,  1,  2,      0,  2,  3,    // front
+                        4,  5,  6,      4,  6,  7,    // back
+                        8,  9,  10,     8,  10, 11,   // up
+                        12, 13, 14,     12, 14, 15,   // down
+                        16, 17, 18,     16, 18, 19,   // right
+                        20, 21, 22,     20, 22, 23    // left
+                    ])
+
+                    this.nIndices = indices.length
+
+                    this.indexBuffer = gl.createBuffer()
+
+                    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.indexBuffer)
+
+                    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.STATIC_DRAW)
+                }
+
+                setTexture(object)
+                {
+                    if (object instanceof WebGLTexture)
+                    {
+                        this.texture = object
+                    }
+                    else if (object.texture instanceof WebGLTexture)
+                    {
+                        this.texture = object.texture
+                    }
+                    else
+                    {
+                        console.warn("Texture not valid")
+                    }
+                }
+
+                /*
+                 * Compute scale, rotation and translation matrices
+                 * and compose them into the model matrix
+                 */
+                updateMatrices()
+                {
+                    const pitch = this.transform.rotation.elements[0]
+                    const yaw = this.transform.rotation.elements[1]
+                    const roll = this.transform.rotation.elements[2]
+
+                    let mPitch = new Matrix4().setRotate(pitch, 1, 0, 0)
+                    let mYaw = new Matrix4().setRotate(yaw, 0, 1, 0)
+                    let mRoll = new Matrix4().setRotate(roll, 0, 0, 1)
+                    let mRotate = mRoll.multiply(mYaw.multiply(mPitch))
+
+                    let mTranslate = new Matrix4().setTranslate(
+                        this.transform.position.elements[0],
+                        this.transform.position.elements[1],
+                        this.transform.position.elements[2]
+                    )
+
+                    let mScale = new Matrix4().setScale(
+                        this.transform.scale.elements[0],
+                        this.transform.scale.elements[1],
+                        this.transform.scale.elements[2]
+                    )
+      
+                    this.modelMatrix = mTranslate.multiply(mRotate).multiply(mScale)
+
+                    this.normalMatrix = new Matrix4().setInverseOf(this.modelMatrix).transpose()
+                }
+
+                beforeDraw()
+                {
+                    // Use the program
+                    gl.useProgram(this.program)
+
+                    // Bind the vertex buffer
+                    gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer)
+                    
+                    // Define how the position attribute will be read into the buffer
+                    const bpe = Float32Array.BYTES_PER_ELEMENT
+
+                    gl.vertexAttribPointer(this.attributes.position, 3, gl.FLOAT, false, 0, 0)
+                    
+                    // Enable the position attribute
+                    gl.enableVertexAttribArray(this.attributes.position)
+
+                    // Bind the texcoord buffer and get texture coodinates attibutes
+                    gl.bindBuffer(gl.ARRAY_BUFFER, this.texCoordBuffer)
+
+                    gl.vertexAttribPointer(this.attributes.texCoord, 2, gl.FLOAT, false, 0, 0)
+                    
+                    // Enable the texcoord attribute
+                    gl.enableVertexAttribArray(this.attributes.texCoord)
+                    
+                    // Bind the normal buffer
+                    gl.bindBuffer(gl.ARRAY_BUFFER, this.normalBuffer)
+
+                    gl.vertexAttribPointer(this.attributes.normal, 3, gl.FLOAT, false, 0, 0)
+                    
+                    // Enable the normal attribute
+                    gl.enableVertexAttribArray(this.attributes.normal)
+                    
+                    // Bind the index buffer
+                    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.indexBuffer)
+
+                    this.updateMatrices()
+
+                    gl.uniformMatrix4fv(this.uniforms.modelMatrix, false, this.modelMatrix.elements)
+                    
+                    gl.uniformMatrix4fv(this.uniforms.normalMatrix, false, this.normalMatrix.elements)
+
+                    // Active and bind texture
+                    if (this.texture !== null)
+                    {
+                        gl.activeTexture(gl.TEXTURE0)
+
+                        gl.bindTexture(gl.TEXTURE_2D, this.texture)
+
+                        gl.uniform1i(this.uniforms.sampler, 0)
+                    }
+                }
+
+                draw(camera, lights)
+                {
+                    this.beforeDraw()
+
+                    gl.drawElements(gl.TRIANGLES, this.nIndices, gl.UNSIGNED_BYTE, 0);
+                }
+            }
+
+            /*
+             * Texture loader class
+             * Implement a load method handling images
+             * Create and setup a WebGL texture object when load is complete
+             */
+            class TextureLoader
+            {
+                constructor()
+                {
+                    this.path = ""
+                }
+
+                destroy()
+                {
+                }
+
+                setPath(path)
+                {
+                    this.path = path
+                }
+
+                setupTexture(image, onLoadComplete)
+                {
+                    let texture = gl.createTexture()
+
+                    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 1)
+
+                    gl.activeTexture(gl.TEXTURE0)
+
+                    gl.bindTexture(gl.TEXTURE_2D, texture)
+
+                    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, image)
+
+                    /*
+                     * Test if texture size is power of two and enable mipmaping
+                     */
+                    if (WebGLHelpers.isPowerOfTwo(image.width) && WebGLHelpers.isPowerOfTwo(image.height))
+                    {
+                        console.log("Texture is power of two, generate mipmap")
+
+                        gl.generateMipmap(gl.TEXTURE_2D)
+                        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST_MIPMAP_LINEAR)
+                    }
+                    else
+                    {
+                        console.log("Texture is not power of two, don't generate mipmap")
+
+                        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+                        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+                        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+                    }
+
+                    onLoadComplete(texture)
+                }
+
+                load(url, onLoadComplete)
+                {
+                    url = this.path + url
+
+                    let image = new Image()
+
+                    image.onload = function() {
+                        this.setupTexture(image, onLoadComplete)
+                    }.bind(this)
+
+                    image.onerror = function() {
+                        console.warn("image load failed (" + url + ")")
+                    }
+
+                    image.src = url
+                }
+            }
+
+            /*
+             * Renderer class
+             * Responsible of clearing and drawing everything in the
+             * canvas
+             * Handle draw buffer and m aintains binding of framebuffers
+             * and camera aspect accordingly
+             */
+            class Renderer
+            {
+                constructor()
+                {
+                    // Clear properties
+                    this.autoClear = false
+                    this.clearColor = []
+                    this.clearDepth = 1
+
+                    // DrawBuffer object
+                    this.drawBuffer = null
+                }
+
+                render(drawList, camera, lights)
+                {
+                    // Check if there is a draw buffer set
+                    // Set the viewport, camera aspect and bind appropriate framebuffer
+                    if (this.drawBuffer !== null)
+                    {
+                        gl.viewport(0, 0, this.drawBuffer.width, this.drawBuffer.height)
+
+                        camera.setAspect(this.drawBuffer.width / this.drawBuffer.height)
+
+                        gl.bindFramebuffer(gl.FRAMEBUFFER, this.drawBuffer.framebuffer)
+                    }
+                    else
+                    {
+                        gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight)
+
+                        camera.setAspect(gl.drawingBufferWidth / gl.drawingBufferHeight)
+
+                        gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+                    }
+
+                    // Clear if auto
+                    if (this.autoClear)
+                    {
+                        this.clear()
+                    }
+
+                    // Draw every object of the list
+                    drawList.forEach(object => {
+                      
+                        // Upload camera uniforms
+                        gl.uniformMatrix4fv(object.uniforms.viewMatrix, false, camera.viewMatrix.elements)
+
+                        gl.uniformMatrix4fv(object.uniforms.projectionMatrix, false, camera.projectionMatrix.elements)
+
+                        // Upload light uniforms
+                        lights.forEach(light => {
+                            if (light instanceof AmbientLight)
+                            {
+                                gl.uniform3fv(object.uniforms.ambientLightColor, [light.color.r, light.color.g, light.color.b])
+                            }
+                            else if (light instanceof DirectionalLight)
+                            {
+                                gl.uniform3fv(object.uniforms.pointLightColor, [light.color.r, light.color.g, light.color.b])
+                                gl.uniform3fv(object.uniforms.pointLightPosition, light.direction.elements)
+                            }
+                            else if (light instanceof PointLight)
+                            {
+                                gl.uniform3fv(object.uniforms.pointLightColor, [light.color.r, light.color.g, light.color.b])
+                                gl.uniform3fv(object.uniforms.pointLightPosition, light.position.elements)
+                            }
+                        })
+
+                        object.draw(camera, lights)
+                    })
+                }
+
+                clear()
+                {
+                    gl.clearColor(this.clearColor[0], this.clearColor[1], this.clearColor[2], this.clearColor[3])
+
+                    gl.clearDepth(this.clearDepth)
+
+                    if (gl.isEnabled(gl.DEPTH_TEST))
+                    {
+                        gl.clear(gl.DEPTH_BUFFER_BIT)
+                    }
+
+                    gl.clear(gl.COLOR_BUFFER_BIT)
+                }
+
+                setClearColor(r, g, b, a)
+                {
+                    this.clearColor = [r, g, b, a]
+                }
+
+                setClearDepth(depth)
+                {
+                    this.clearDepth = depth
+                }
+
+                setDrawBuffer(drawBuffer)
+                {
+                    this.drawBuffer = drawBuffer
+                }
+            }
+
+            /*
+             * Init routine
+             * Create GUI, cube and texture loader
+             * Load the cube texture, and start animation when texture is ready
+             */
+
+            function init()
+            {
+                let canvas = document.getElementById("canvas")
+                gl = WebGLUtils.setupWebGL(canvas)
+
+                gl.enable(gl.DEPTH_TEST)
+                
+                context.gui = new GUI()
+
+                context.renderer = new Renderer()
+                context.renderer.autoClear = true
+                context.renderer.setClearColor(0.1, 0.1, 0.1, 1.0)
+                context.camera = new Camera()
+
+                context.ambientLight = new AmbientLight()
+                context.pointLight = new PointLight()
+                
+                // Create a cube
+                context.cube = new Cube()
+                context.cube.transform.scale = new Vector3([1.5, 1.5, 1.5])
+  
+                // Load a texture for the cube and the sphere
+                context.loader = new TextureLoader()
+                context.loader.setPath("../assets/texture/")
+                context.loader.load("wood-512x512.jpg", (texture => {
+                    context.cube.setTexture(texture)
+                    animate()
+                }))
+            }
+
+            /*
+             * Animation loop
+             * Called once per frame
+             *
+             * Schedule next frame
+             * Update the current state
+             * Call render routine
+             */
+            function animate()
+            {
+                window.requestAnimationFrame(animate)
+
+                // Update phase for animation (ramp from 0 to 1 during the period interval)
+                context.animation.phase = ((Date.now() / 1000) % context.animation.period) / context.animation.period
+                
+                // Rotate the cube
+                let angle = 360 * context.animation.phase
+
+                context.cube.transform.rotation.elements[1] = angle
+                context.cube.transform.rotation.elements[0] = 45 * Math.sin(context.animation.phase * 2 * Math.PI)
+
+                render()
+            }
+
+            /*
+             * Render routine
+             */
+            function render()
+            {
+                context.ambientLight.color = Color.fromHex(context.gui.params.ambientLightColor)
+
+                context.pointLight.color = Color.fromHex(context.gui.params.pointLightColor)
+                
+                context.pointLight.position.elements[0] = context.gui.params.pointLightX
+                context.pointLight.position.elements[1] = context.gui.params.pointLightY
+                context.pointLight.position.elements[2] = context.gui.params.pointLightZ
+
+                const objects = [context.cube]
+                const lights = [context.ambientLight, context.pointLight]
+
+                context.renderer.render(objects, context.camera, lights)
+            }
+
+            init()
+
+        </script>
+
+    </body>
+
+</html>
+
